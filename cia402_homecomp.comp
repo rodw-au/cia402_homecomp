@@ -28,6 +28,7 @@ Sor by inifile setting: \\fB[EMCMOT]HOMEMOD=user_homecomp\\fR
 
 \\fBNote:\\fRIf using a deb install:\n
 1) halcompile is provided by the package linuxcnc-uspace-dev\n
+""";
 
 pin out bit is_module=1; //one pin is required to use halcompile)
 
