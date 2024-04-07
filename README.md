@@ -39,3 +39,18 @@ Install linuxcnc from its repositories
 ```
 git clone https://github.com/LinuxCNC/linuxcnc.git linuxcnc-dev
 ```
+to build and install this component
+```
+(sudo)halcompile --install cia402_homecomp.comp
+```
+to use this component in a linuxcnc configuration, it needs to be loaded from the command line
+```
+
+linuxcnc -m cia402_homecomp someconfig.ini
+```
+or from the **.ini** file
+
+```
+[EMCMOT]
+HOMEMOD=cia402_homecomp
+```
