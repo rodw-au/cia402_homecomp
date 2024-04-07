@@ -1,7 +1,7 @@
 # Introduction
 This is a first draft of a custom homing module for **cia402** compatible ethercat drives.
-It is inspired by @marcoreps work for [Leadshine el8 drives] (https://github.com/marcoreps/linuxcnc_leadshine_EL8)
-And Dominc Brauns [cia402.comp] (https://github.com/dbraun1981/hal-cia402)
+It is inspired by @marcoreps work for [Leadshine el8 drives](https://github.com/marcoreps/linuxcnc_leadshine_EL8)
+And Dominc Brauns [cia402.comp](https://github.com/dbraun1981/hal-cia402)
 Many thanks to Dewey Garrett for the homecomp.comp method for developing custom homing modules using halcompile.
 The initial version of homecomp required hundreds of unnecessary lines of code to be copied boiler plate from homing.c
 Dewey subsequently vastly simplified the homemod structure so this was no longer required as many procedures are now by default templated.
@@ -49,8 +49,8 @@ to use this component in a linuxcnc configuration, it needs to be loaded from th
 linuxcnc -m cia402_homecomp someconfig.ini
 ```
 or from the **.ini** file
-
 ```
 [EMCMOT]
 HOMEMOD=cia402_homecomp
 ```
+**Please note** that I am unable to test or compile this component as I am in hospital so have limited ability
