@@ -1,0 +1,106 @@
+---
+# Adapted from LinuxCNC-Ethercat's ci.yml action
+#
+name: Build CI
+
+on:  # yamllint disable-line rule:truthy
+    push:
+        branches: [master]
+    pull_request:
+    merge_group:
+    release:
+        types: [published]
+    check_suite:
+        types: [rerequested]
+
+permissions:
+    contents: read  # to fetch code (actions/checkout)
+
+jobs:
+    # Build LinuxCNC itself.  The result is cached, probably too aggressively.
+    build-linuxcnc:
+        runs-on: ubuntu-20.04
+        steps:
+            - name: cache linuxcnc
+              id: cache-linuxcnc
+              uses: actions/cache@v4
+              env:
+                  cache-name: cache-linuxcnc
+              with:
+                  key: ${{ runner.os }}-build-${{ env.cache-name }}
+                  path: linuxcnc/
+
+            - name: Checkout linuxcnc
+              if: ${{ steps.cache-linuxcnc.outputs.cache-hit != 'true' }}
+              uses: actions/checkout@v4
+              with:
+                  repository: linuxcnc/linuxcnc
+                  path: linuxcnc/
+                  submodules: true
+                  fetch-depth: 0
+
+            - name: install linuxcnc deps
+              if: ${{ steps.cache-linuxcnc.outputs.cache-hit != 'true' }}
+              run: |
+                  set -x
+                  cd linuxcnc
+                  # LinuxCNC provides a script to install deps, but it installs *way* too many things,
+                  # including TeX and most of X
+                  ./scripts/travis-install-build-deps.sh
+
+                  #curl -O https://snapshot.debian.org/archive/debian/20220716T154603Z/pool/main/p/po4a/po4a_0.67-2_all.deb
+                  #sudo apt install --yes ./po4a_0.67-2_all.deb
+                  #sudo apt --quiet --yes upgrade
+
+            - name: Build linuxcnc
+              if: ${{ steps.cache-linuxcnc.outputs.cache-hit != 'true' }}
+              run: |
+                  set -x
+                  cd linuxcnc
+                  cd src
+                  ./autogen.sh
+                  ./configure \
+                  --with-realtime=uspace \
+                  --disable-check-runtime-deps \
+                  --disable-gtk \
+                  --enable-non-distributable=yes
+                  make -O -j$((1+$(nproc))) default pycheck V=1
+
+    # Build cia402_halcomp itself
+    build:
+        needs:
+            - build-linuxcnc
+        runs-on: ubuntu-20.04
+        steps:
+            - name: Dump GitHub context
+              env:
+                  GITHUB_CONTEXT: ${{ toJson(github) }}
+              run: echo "$GITHUB_CONTEXT"
+
+            - name: Checkout cia402_halcomp
+              uses: actions/checkout@v4
+
+            - name: Install dependencies
+              run: |
+                  sh -x
+                  sudo apt install yapps2
+
+            - name: Restore LinuxCNC cache
+              uses: actions/cache/restore@v4
+              env:
+                  cache-name: cache-linuxcnc
+              with:
+                  key: ${{ runner.os }}-build-${{ env.cache-name }}
+                  path: linuxcnc/
+
+            - name: Install linuxcnc locally
+              run: |
+                  set -x
+                  cd linuxcnc/src
+                  sudo make install-kernel-indep
+                  echo "$GITHUB_WORKSPACE/linuxcnc/bin" >> $GITHUB_PATH
+
+            - name: make
+              run: |
+                  halcompile --install cia402_homecomp.comp
+
