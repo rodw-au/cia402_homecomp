@@ -53,4 +53,3 @@ or from the **.ini** file
 [EMCMOT]
 HOMEMOD=cia402_homecomp
 ```
-**Please note** that I am unable to test or compile this component as I am in hospital so have limited ability
