@@ -17,9 +17,9 @@ This earlier work by Dominc was designed to home  cia402 drives was based on usi
 using torque or external homing switches attached to the drive itself. Prior to the homecomp method, to get external homing to work required modification of homing.c and rebuilding linuxnc.
 # How does it work?
 This component requires an understanding of linuxcnc internals. It is complicated because it deals with all joints at one time. First, lets decide on the pins we need which are added to the joints
-   - **joint.n.request_cia402_homing**
-   - **joint.n.is_cia402_homing**
-   - **joint.n.cia402_homing_finished**
+   - **joint.n.request_custom_homing**
+   - **joint.n.is_custom_homing**
+   - **joint.n.custom_homing_finished**
 
 To manage these pins and the cia402 external homing process we require:
 1. A structure to hold the pin data for each joint
