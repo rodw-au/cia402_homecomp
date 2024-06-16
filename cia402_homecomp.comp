@@ -120,9 +120,9 @@ static void custom_read_homing_in_pins(int njoints)
     custom_one_joint_home_data_t *addr;
     for (jno = 0; jno < njoints; jno++) {
       addr = &(custom_joint_home_data->custom_jhd[jno]);
-      customH[jno].request_cia402_homing = *(addr->request_cia402_homing);   // IO
-      customH[jno].is_cia402_homing = *(addr->is_cia402_homing);             // IN
-  		customH[jno].cia402_homing_finished = *(addr->cia402_homing_finished); // IN
+      customH[jno].request_custom_homing = *(addr->request_cia402_homing);   // IO
+      customH[jno].is_custom_homing = *(addr->is_cia402_homing);             // IN
+  		customH[jno].custom_homing_finished = *(addr->cia402_homing_finished); // IN
     }
 }
 
@@ -132,7 +132,7 @@ static void custom_write_homing_out_pins(int njoints)
     custom_one_joint_home_data_t *addr;
     for (jno = 0; jno < njoints; jno++) {
         addr = &(custom_joint_home_data->custom_jhd[jno]);
-        *(addr->request_cia402_homing) = customH[jno].request_cia402_homing; // IO
+        *(addr->request_cia402_homing) = customH[jno].request_custom_homing; // IO
     }
 }
 
@@ -159,7 +159,7 @@ static custom_home_state_t chomestate[EMCMOT_MAX_JOINTS] = {0};
     switch (chomestate[joint_num]) {
       case HOME_BEGIN:
         //rtapi_print("state machine started \n");
-        customH[joint_num].request_cia402_homing = 1;
+        customH[joint_num].request_custom_homing = 1;
         chomestate[joint_num] = HOME_RUNNING;
         break;
 		
@@ -167,7 +167,7 @@ static custom_home_state_t chomestate[EMCMOT_MAX_JOINTS] = {0};
         // rtapi_print("servo drive did hear and is now homing \n");
         // RODW - I think we should be checking that the drive has entered homing, maybe insert another state?
         // RODW - the cia402 comp sets pos_fb = pos_cmd while internal homing to prevent following errors. This could be done here.
-        if(customH[joint_num].cia402_homing_finished)
+        if(customH[joint_num].custom_homing_finished)
 			    chomestate[joint_num] = HOME_FINISHED;
         break;
       case HOME_FINISHED:
