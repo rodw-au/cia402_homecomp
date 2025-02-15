@@ -69,68 +69,10 @@ EXTRA_SETUP() {
 #define CUSTOM_HOMEMODULE
 #include USE_HOMING_BASE
 
-typedef struct {
-  bool request_custom_homing;
-  bool is_custom_homing;
-  bool custom_homing_finished;
-  // CIA402 pins
-  unsigned statusword;       // IN  - Drives CiA402 Statusword, index 0x6041
-  signed opmode_display;      // IN  - Drives Modes of Operation feedback register, index 0x6061
-  signed drv_actual_position; // IN  - Drives actual Position, index 0x6064
-  signed drv_actual_velocity; // IN  - Drives actual Velocity, index 0x606C 
-  hal_u32_t controlword;      // OUT - Drives CIA402 Controlword, index 0x6040
-  signed opmode;              // OUT - Drives Modes of Operation Input, index 0x6060
-  signed drv_target_position; // OUT - Position command to the drive, index 0x607A
-  signed drv_target_velocity; // OUT - Velocity command to the drive, index 0x60FF  
-  //Homing IOs
-  hal_bit_t cia_home;         // IO  - true starts the Drives internal home procedure
-  hal_bit_t stat_homed;  	  // OUT - true indicates that the Drive is internaly homed
-  hal_bit_t stat_homing; 	  // OUT - true indicates that the Drives homing procedure is running
-  hal_bit_t enable;     		// IN - true enables the Drive
-  float pos_cmd;  			// IN - target Position, from Motion or PID
-  float velocity_cmd;         // IN - target Velocity, from Motion or PID
-  float pos_fb;               // OUT - Position feedback, scaled
-  float velocity_fb;          // OUT - Velocity feedback scaled
-  hal_bit_t drv_fault;        // OUT - true indicates an Drive Error
-  Status_t     Status;  	  // IN  - CIA Status Word with bitmap (not a pin)
-  Control_t    Control; 	  // OUT - CIA Control Word with bitmap (not a pin)   
-} custom_home_local_data;
+
 
 static custom_home_local_data customH[EMCMOT_MAX_JOINTS];
 
-// data for per-joint custom-homing-specific hal pins:
-typedef struct {
-  hal_bit_t *request_custom_homing;   // output requests homing (connect to cia402.n.home)
-  hal_bit_t *is_custom_homing;        // input verifies custom homing (connect to cia402.n.stat_homing)
-  hal_bit_t *custom_homing_finished;  // input from servo drive after homing (connect to cia402.n.stat_homed)
-  hal_u32_t *statusword;       // IN  - Drives CiA402 Statusword, index 0x6041
-  signed *opmode_display;      // IN  - Drives Modes of Operation feedback register, index 0x6061
-  signed *drv_actual_position; // IN  - Drives actual Position, index 0x6064
-  signed *drv_actual_velocity; // IN  - Drives actual Velocity, index 0x606C 
-  unsigned *controlword;       // OUT - Drives CIA402 Controlword, index 0x6040
-  signed *opmode;              // OUT - Drives Modes of Operation Input, index 0x6060
-  signed *drv_target_position; // OUT - Position command to the drive, index 0x607A
-  signed *drv_target_velocity; // OUT - Velocity command to the drive, index 0x60FF
-  hal_bit_t *cia_enable;       // IN - true enables the Drive
-  float *cia_pos_cmd;  		   // IN - target Position, from Motion or PID
-  float *cia_velocity_cmd;     // IN - target Velocity, from Motion or PID
-  float *cia_pos_fb;           // OUT - Position feedback, scaled
-  float *cia_velocity_fb;      // OUT - Velocity feedback scaled
-  hal_bit_t *cia_drv_fault;    // OUT - true indicates an Drive Error   
-  //Homing IOs
-  hal_bit_t *cia_home;   	   // IO  - true starts the Drives internal home procedure
-  hal_bit_t *stat_homed; 	   // OUT - true indicates that the Drive is internaly homed
-  hal_bit_t *stat_homing;	   // OUT - true indicates that the Drives homing procedure is running
-  // Inluded for compatibility with homing.c
-  int pause_timer;
-  double       *home_final_vel;       // intfc
-  double       *home_search_vel;      // intfc
-  double       *home_latch_vel;       // intfc
-} custom_one_joint_home_data_t;
-
-typedef struct {
-  custom_one_joint_home_data_t custom_jhd[EMCMOT_MAX_JOINTS];
-} custom_all_joints_home_data_t;
 
 static custom_all_joints_home_data_t *custom_joint_home_data = 0;
 
@@ -207,6 +149,7 @@ static void custom_read_homing_in_pins(int njoints)
 		customH[jno].statusword = *(addr->statusword);                   // IN - Drives CiA402 Statusword, index 0x6041   
 		customH[jno].Status.Word = *(addr->statusword);                  //    - bitmapped status overlay, not a pin
 		customH[jno].opmode_display = *(addr->opmode_display);           // IN - Drives Modes of Operation feedback register, index 0x6061
+		customH[jno].opmode = *(addr->opmode_display);                   // IN - Drives Modes of Operation feedback register, index 0x6061
 		customH[jno].drv_actual_position = *(addr->drv_actual_position); // IN - Drives actual Position, index 0x6064
 		customH[jno].drv_actual_velocity = *(addr->drv_actual_velocity); // IN - Drives actual Velocity, index 0x606C
 		customH[jno].enable = *(addr->cia_enable);                       // IN - true enables the Drive
@@ -235,16 +178,8 @@ static void custom_write_homing_out_pins(int njoints)
 
 static int custom_1joint_state_machine(int joint_num){
 	
-typedef enum {
-    HOME_WAIT      = 0,
-    HOME_BEGIN     = 1,
-    HOME_INIT      = 2,
-    HOME_RUNNING   = 3,
-	HOME_FINISHED  = 4,
-} custom_home_state_t;
-
-static custom_home_state_t chomestate[EMCMOT_MAX_JOINTS] = {0};
-       custom_home_state_t nextcstate;
+	static custom_home_state_t chomestate[EMCMOT_MAX_JOINTS] = {0};
+    custom_home_state_t nextcstate;
 
     if ( H[joint_num].home_state == HOME_IDLE)
       return(0);
@@ -256,34 +191,42 @@ static custom_home_state_t chomestate[EMCMOT_MAX_JOINTS] = {0};
 
     switch (chomestate[joint_num]) {
       case HOME_BEGIN:
-        //rtapi_print("state machine started \n");
+        rtapi_print("state machine started \n");
+        //customH[joint_num].opmode = 0x06h;
+        customH[joint_num].Control.StartHome = 1;
         customH[joint_num].request_custom_homing = 1;
         chomestate[joint_num] = HOME_INIT;
         break;
       case HOME_INIT:	
-        // RODW - We should be checking that the drive has entered homing, so insert another state
-        //rtapi_print("state machine waiting for homing command to become active \n");
+        // check that the drive has entered homing in case it is not instant
+        rtapi_print("state machine waiting for homing command to become active \n");
+        //if(customH[joint_num].Status.TargetReached == 1)
 		chomestate[joint_num] = HOME_RUNNING;
+		rtapi_print("Home initialised, ready to start homing");
 		break;
       case HOME_RUNNING:
         // rtapi_print("servo drive did hear and is now homing \n");
+        // RODW - the cia402 comp sets pos_fb = pos_cmd while internartapi_print("servo drive did hear and is now homing \n");
         // RODW - the cia402 comp sets pos_fb = pos_cmd while internal homing to prevent following errors. This could be done here.
-        if(customH[joint_num].custom_homing_finished)
-			    chomestate[joint_num] = HOME_FINISHED;
+        //if(customH[joint_num].custom_homing_finished)
+		if(customH[joint_num].Status.TargetReached == 1){
+			rtapi_print("Homing target reached\n");
+			chomestate[joint_num] = HOME_FINISH;
+		}	   
         break;
-      case HOME_FINISHED:
-    		//rtapi_print("state machine finished \n");
-    		joints[joint_num].pos_cmd = 0.0;
-    		joints[joint_num].free_tp.curr_pos = 0.0;
-    		joints[joint_num].motor_pos_cmd = 0.0;
-    		H[joint_num].homing = 0;
-    		H[joint_num].homed  = 1;
-    		H[joint_num].home_state = HOME_IDLE;
-    		chomestate[joint_num] = HOME_WAIT;
-    		customH[joint_num].request_custom_homing = 0;
-    		return 0; // finished custom_home_states
-        break;
-      case HOME_WAIT:  // RODW -this has been set as the defult when chomestate[joint_num] was defined but should never be set during the switch()
+      case HOME_FINISH:
+		//rtapi_print("state machine finished \n");
+		joints[joint_num].pos_cmd = 0.0;
+		joints[joint_num].free_tp.curr_pos = 0.0;
+		joints[joint_num].motor_pos_cmd = 0.0;
+		H[joint_num].homing = 0;
+		H[joint_num].homed  = 1;
+		H[joint_num].home_state = HOME_IDLE;
+		chomestate[joint_num] = HOME_WAIT;
+		customH[joint_num].request_custom_homing = 0;
+		return 0; // finished custom_home_states
+		break;
+      case HOME_WAIT:  // RODW -this has been set as the default when chomestate[joint_num] was defined but should never be set during the switch()
       default:
         rtapi_print("Unhandled custom_home_state: %d\n",chomestate[joint_num]);
     }
@@ -463,7 +406,7 @@ static int makepins(int id,int njoints)
                                   "joint.%d.cia-opmode-display", jno);
         retval += hal_pin_s32_newf(HAL_IN, (volatile int **)&(addr->drv_actual_position), id,
                                   "joint.%d.cia-drv-actual_position", jno);
-       retval += hal_pin_s32_newf(HAL_IN, (volatile int **)&(addr->drv_actual_velocity), id,
+        retval += hal_pin_s32_newf(HAL_IN, (volatile int **)&(addr->drv_actual_velocity), id,
                                   "joint.%d.cia-drv-actual-velocity", jno);                                 
         retval += hal_pin_u32_newf(HAL_OUT, (volatile unsigned int **)&(addr->controlword), id,
                                   "joint.%d.cia-controlword", jno);
