@@ -193,7 +193,7 @@ static int custom_1joint_state_machine(int joint_num){
       case HOME_BEGIN:
         rtapi_print("state machine started \n");
         //customH[joint_num].opmode = 0x06h;
-        customH[joint_num].Control.StartHome = 1;
+        customH[joint_num].Control.b.StartHome = 1;
         customH[joint_num].request_custom_homing = 1;
         chomestate[joint_num] = HOME_INIT;
         break;
@@ -209,7 +209,7 @@ static int custom_1joint_state_machine(int joint_num){
         // RODW - the cia402 comp sets pos_fb = pos_cmd while internartapi_print("servo drive did hear and is now homing \n");
         // RODW - the cia402 comp sets pos_fb = pos_cmd while internal homing to prevent following errors. This could be done here.
         //if(customH[joint_num].custom_homing_finished)
-		if(customH[joint_num].Status.TargetReached == 1){
+		if(customH[joint_num].Status.b.TargetReached == 1){
 			rtapi_print("Homing target reached\n");
 			chomestate[joint_num] = HOME_FINISH;
 		}	   
