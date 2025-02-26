@@ -58,6 +58,7 @@ RTAPI_MP_STRING(home_parms,"Example home parms");
 
 // EXTRA_SETUP is executed before rtapi_app_main()
 EXTRA_SETUP() {
+    rtapi_print_msg(RTAPI_MSG_ERR, "HomeComp Started\n");
     return 0;
 }
 
@@ -144,21 +145,19 @@ static void custom_read_homing_in_pins(int njoints)
     for (jno = 0; jno < njoints; jno++) {
 		addr = &(custom_joint_home_data->custom_jhd[jno]);
 		customH[jno].request_custom_homing = *(addr->request_custom_homing);   // IO
+
 		customH[jno].is_custom_homing = *(addr->is_custom_homing);             // IN
 		customH[jno].custom_homing_finished = *(addr->custom_homing_finished); // IN
 		customH[jno].statusword = *(addr->statusword);                   // IN - Drives CiA402 Statusword, index 0x6041   
 		customH[jno].Status.Word = *(addr->statusword);                  //    - bitmapped status overlay, not a pin
 		customH[jno].opmode_display = *(addr->opmode_display);           // IN - Drives Modes of Operation feedback register, index 0x6061
-		customH[jno].opmode = *(addr->opmode_display);                   // IN - Drives Modes of Operation feedback register, index 0x6061
+		customH[jno].opmode = *(addr->opmode);                           // IN - Drives Modes of Operation feedback register, index 0x6061
 		customH[jno].drv_actual_position = *(addr->drv_actual_position); // IN - Drives actual Position, index 0x6064
 		customH[jno].drv_actual_velocity = *(addr->drv_actual_velocity); // IN - Drives actual Velocity, index 0x606C
 		customH[jno].enable = *(addr->cia_enable);                       // IN - true enables the Drive
 		customH[jno].pos_cmd = *(addr->cia_pos_cmd);                     // IN - target Position, from Motion or PID	
 		customH[jno].velocity_cmd = *(addr->cia_velocity_cmd);           // IN - target Velocity, from Motion or PID
 		customH[jno].cia_home      = *(addr->cia_home);                  // IO - true starts the Drives internal home procedure[jno].home_sw     \
-		customH[jno].opmode_display = *(addr->opmode_display);           // IN - Drives Modes of Operation feedback register, index 0x6061
-		customH[jno].drv_actual_position = *(addr->drv_actual_position); // IN - Drives actual Position, index 0x6064
-		customH[jno].drv_actual_velocity = *(addr->drv_actual_velocity); // IN - Drives actual Velocity, index 0x606C
 		customH[jno].enable = *(addr->cia_enable);                       // IN - true enables the Drive
 		customH[jno].pos_cmd = *(addr->cia_pos_cmd);                     // IN - target Position, from Motion or PID	
 		customH[jno].velocity_cmd = *(addr->cia_velocity_cmd);           // IN - target Velocity, from Motion or PID
@@ -173,48 +172,68 @@ static void custom_write_homing_out_pins(int njoints)
     for (jno = 0; jno < njoints; jno++) {
         addr = &(custom_joint_home_data->custom_jhd[jno]);
         *(addr->request_custom_homing) = customH[jno].request_custom_homing; // IO
+        
+        *(addr->is_custom_homing) = customH[jno].is_custom_homing;             // IN
+		 *(addr->custom_homing_finished) = customH[jno].custom_homing_finished; // IN
+		//*(addr->statusword) = customH[jno].statusword;                 // IN - Drives CiA402 Statusword, index 0x6041   
+		*(addr->statusword) = customH[jno].Status.Word;                  //    - bitmapped status overlay, not a pin
+		*(addr->opmode_display) = customH[jno].opmode_display;       // IN - Drives Modes of Operation feedback register, index 0x6061
+		*(addr->opmode) = customH[jno].opmode;                       // IN - Drives Modes of Operation feedback register, index 0x6061
+		*(addr->drv_actual_position) = customH[jno].drv_actual_position; // IN - Drives actual Position, index 0x6064
+		*(addr->drv_actual_velocity) = customH[jno].drv_actual_velocity; // IN - Drives actual Velocity, index 0x606C
+		*(addr->cia_enable) = customH[jno].enable;                       // IN - true enables the Drive
+		*(addr->cia_pos_cmd) = customH[jno].pos_cmd;                     // IN - target Position, from Motion or PID	
+		*(addr->cia_velocity_cmd) = customH[jno].velocity_cmd;           // IN - target Velocity, from Motion or PID
+		*(addr->cia_home) = customH[jno].cia_home;                       // IO - true starts the Drives internal home procedure[jno].home_sw     \
+		*(addr->cia_enable) = customH[jno].enable;                       // IN - true enables the Drive
+		*(addr->cia_pos_cmd) = customH[jno].pos_cmd;                     // IN - target Position, from Motion or PID	
+		*(addr->cia_velocity_cmd) = customH[jno].velocity_cmd;           // IN - target Velocity, from Motion or PID
+		*(addr->cia_home)= customH[jno].cia_home;                        // IO - 
     }
 }
 
 static int custom_1joint_state_machine(int joint_num){
 	
 	static custom_home_state_t chomestate[EMCMOT_MAX_JOINTS] = {0};
-    custom_home_state_t nextcstate;
+    custom_home_state_t nextcstate = CUSTOM_IDLE;
 
-    if ( H[joint_num].home_state == HOME_IDLE)
+    if ( H[joint_num].home_state == HOME_IDLE){
+      //rtapi_print(".");
       return(0);
-    if ((H[joint_num].home_state == HOME_START) && (chomestate[joint_num] == HOME_WAIT) ) {
+    }
+    if ((H[joint_num].home_state == HOME_START) && (chomestate[joint_num] == CUSTOM_IDLE) ) {
+ //  if (H[joint_num].home_state == HOME_START){
         H[joint_num].homing = 1;
         H[joint_num].homed  = 0;
-        chomestate[joint_num] = HOME_BEGIN; // set first non-idle custom_home_state
+        rtapi_print_msg(RTAPI_MSG_ERR, "Joint %d: state machine started HOME_START\n",H[joint_num]);
+        chomestate[joint_num] = CUSTOM_BEGIN; // set first non-idle custom_home_state
     }
 
     switch (chomestate[joint_num]) {
-      case HOME_BEGIN:
+      case CUSTOM_BEGIN:
         rtapi_print("state machine started \n");
-        //customH[joint_num].opmode = 0x06h;
+        customH[joint_num].opmode = 6;
         customH[joint_num].Control.b.StartHome = 1;
-        customH[joint_num].request_custom_homing = 1;
-        chomestate[joint_num] = HOME_INIT;
+        //customH[joint_num].request_custom_homing = 1;
+        chomestate[joint_num] = CUSTOM_INIT;
         break;
-      case HOME_INIT:	
+      case CUSTOM_INIT:	
         // check that the drive has entered homing in case it is not instant
         rtapi_print("state machine waiting for homing command to become active \n");
-        //if(customH[joint_num].Status.TargetReached == 1)
-		chomestate[joint_num] = HOME_RUNNING;
+		chomestate[joint_num] = CUSTOM_RUNNING;
 		rtapi_print("Home initialised, ready to start homing");
 		break;
-      case HOME_RUNNING:
+      case CUSTOM_RUNNING:
         // rtapi_print("servo drive did hear and is now homing \n");
         // RODW - the cia402 comp sets pos_fb = pos_cmd while internartapi_print("servo drive did hear and is now homing \n");
         // RODW - the cia402 comp sets pos_fb = pos_cmd while internal homing to prevent following errors. This could be done here.
         //if(customH[joint_num].custom_homing_finished)
 		if(customH[joint_num].Status.b.TargetReached == 1){
 			rtapi_print("Homing target reached\n");
-			chomestate[joint_num] = HOME_FINISH;
+			chomestate[joint_num] = CUSTOM_FINISH;
 		}	   
         break;
-      case HOME_FINISH:
+      case CUSTOM_FINISH:
 		//rtapi_print("state machine finished \n");
 		joints[joint_num].pos_cmd = 0.0;
 		joints[joint_num].free_tp.curr_pos = 0.0;
@@ -222,11 +241,11 @@ static int custom_1joint_state_machine(int joint_num){
 		H[joint_num].homing = 0;
 		H[joint_num].homed  = 1;
 		H[joint_num].home_state = HOME_IDLE;
-		chomestate[joint_num] = HOME_WAIT;
+		chomestate[joint_num] = CUSTOM_IDLE;
 		customH[joint_num].request_custom_homing = 0;
 		return 0; // finished custom_home_states
 		break;
-      case HOME_WAIT:  // RODW -this has been set as the default when chomestate[joint_num] was defined but should never be set during the switch()
+      case CUSTOM_IDLE:  // RODW -this has been set as the default when chomestate[joint_num] was defined but should never be set during the switch()
       default:
         rtapi_print("Unhandled custom_home_state: %d\n",chomestate[joint_num]);
     }
@@ -492,6 +511,7 @@ void write_homing_out_pins(int njoints)
 	*(addr->controlword) = H[jno].controlword;     // OUT
 	H[jno].Control.Word = H[jno].controlword;      // Save status to bitmapped struct
 	*(addr->opmode) = H[jno].opmode;               // OUT
+	*(addr->opmode-display = H[jno].cia-opmode-display; // OUT  
 	*(addr->cia_pos_fb) = H[jno].pos_fb;           // OUT                
 	*(addr->cia_velocity_fb) = H[jno].velocity_fb; // OUT                
 	*(addr->drv_target_position) = H[jno].drv_target_position; // OUT                

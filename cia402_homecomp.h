@@ -105,9 +105,9 @@ typedef struct {
 } custom_all_joints_home_data_t;
 
 typedef enum {
-    HOME_WAIT      = 0,
-    HOME_BEGIN     = 1,
-    HOME_INIT      = 2,
-    HOME_RUNNING   = 3,
-	HOME_FINISH  = 4
+    CUSTOM_IDLE      = 0,
+    CUSTOM_BEGIN     = 1,
+    CUSTOM_INIT      = 2,
+    CUSTOM_RUNNING   = 3,
+	CUSTOM_FINISH    = 4
 } custom_home_state_t;
