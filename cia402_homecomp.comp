@@ -44,7 +44,7 @@ option  extra_setup;
 ** (Edit myname as required for valid path)
 */
 
-#define HOMING_BASE /home/debian/devel/linuxcnc-dev/src/emc/motion/homing.c
+#define HOMING_BASE /home/rod/devt/linuxcnc-dev/src/emc/motion/homing.c
 
 #define STR(s)  #s
 #define XSTR(s) STR(s)
@@ -159,8 +159,8 @@ static void custom_read_homing_in_pins(int njoints)
 		customH[jno].velocity_cmd = *(addr->cia_velocity_cmd);           // IN - target Velocity, from Motion or PID
 		customH[jno].cia_home      = *(addr->cia_home);                  // IO - true starts the Drives internal home procedure[jno].home_sw     \
 		customH[jno].enable = *(addr->cia_enable);                       // IN - true enables the Drive
-		customH[jno].pos_cmd = *(addr->cia_pos_cmd);                     // IN - target Position, from Motion or PID	
-		customH[jno].velocity_cmd = *(addr->cia_velocity_cmd);           // IN - target Velocity, from Motion or PID
+		customH[jno].pos_cmd = *(addr->cia_pos_fb);                      // IN - Feedback, from Motion or PID	
+		customH[jno].velocity_cmd = *(addr->cia_velocity_fb);            // IN - target Velocity, from Motion or PID
 		customH[jno].cia_home      = *(addr->cia_home);                  // IO - true starts the Drives internal home procedure
     }
 }
@@ -177,8 +177,8 @@ static void custom_write_homing_out_pins(int njoints)
 		 *(addr->custom_homing_finished) = customH[jno].custom_homing_finished; // IN
 		//*(addr->statusword) = customH[jno].statusword;                 // IN - Drives CiA402 Statusword, index 0x6041   
 		*(addr->statusword) = customH[jno].Status.Word;                  //    - bitmapped status overlay, not a pin
-		*(addr->opmode_display) = customH[jno].opmode_display;       // IN - Drives Modes of Operation feedback register, index 0x6061
-		*(addr->opmode) = customH[jno].opmode;                       // IN - Drives Modes of Operation feedback register, index 0x6061
+		*(addr->opmode_display) = customH[jno].opmode_display;           // IN - Drives Modes of Operation feedback register, index 0x6061
+		*(addr->opmode) = customH[jno].opmode;                           // IN - Drives Modes of Operation feedback register, index 0x6061
 		*(addr->drv_actual_position) = customH[jno].drv_actual_position; // IN - Drives actual Position, index 0x6064
 		*(addr->drv_actual_velocity) = customH[jno].drv_actual_velocity; // IN - Drives actual Velocity, index 0x606C
 		*(addr->cia_enable) = customH[jno].enable;                       // IN - true enables the Drive
@@ -186,8 +186,8 @@ static void custom_write_homing_out_pins(int njoints)
 		*(addr->cia_velocity_cmd) = customH[jno].velocity_cmd;           // IN - target Velocity, from Motion or PID
 		*(addr->cia_home) = customH[jno].cia_home;                       // IO - true starts the Drives internal home procedure[jno].home_sw     \
 		*(addr->cia_enable) = customH[jno].enable;                       // IN - true enables the Drive
-		*(addr->cia_pos_cmd) = customH[jno].pos_cmd;                     // IN - target Position, from Motion or PID	
-		*(addr->cia_velocity_cmd) = customH[jno].velocity_cmd;           // IN - target Velocity, from Motion or PID
+		*(addr->cia_pos_fb) = customH[jno].pos_fb;                       // IN - feedback position, from Motion or PID	
+		*(addr->cia_velocity_fb) = customH[jno].velocity_fb;             // IN - feedback Velocity, from Motion or PID
 		*(addr->cia_home)= customH[jno].cia_home;                        // IO - 
     }
 }
@@ -225,8 +225,8 @@ static int custom_1joint_state_machine(int joint_num){
 		break;
       case CUSTOM_RUNNING:
         // rtapi_print("servo drive did hear and is now homing \n");
-        // RODW - the cia402 comp sets pos_fb = pos_cmd while internartapi_print("servo drive did hear and is now homing \n");
-        // RODW - the cia402 comp sets pos_fb = pos_cmd while internal homing to prevent following errors. This could be done here.
+        // RODW - the cia402 comp sets pos_fb = pos_cmd while internal homing to prevent following errors. 
+		customH[joint_num].pos_fb =  customH[joint_num].pos_cmd;
         //if(customH[joint_num].custom_homing_finished)
 		if(customH[joint_num].Status.b.TargetReached == 1){
 			rtapi_print("Homing target reached\n");
@@ -424,7 +424,7 @@ static int makepins(int id,int njoints)
         retval += hal_pin_s32_newf(HAL_IN, (volatile int **)&(addr->opmode_display), id,
                                   "joint.%d.cia-opmode-display", jno);
         retval += hal_pin_s32_newf(HAL_IN, (volatile int **)&(addr->drv_actual_position), id,
-                                  "joint.%d.cia-drv-actual_position", jno);
+                                  "joint.%d.cia-drv-actual-position", jno);
         retval += hal_pin_s32_newf(HAL_IN, (volatile int **)&(addr->drv_actual_velocity), id,
                                   "joint.%d.cia-drv-actual-velocity", jno);                                 
         retval += hal_pin_u32_newf(HAL_OUT, (volatile unsigned int **)&(addr->controlword), id,
@@ -440,7 +440,7 @@ static int makepins(int id,int njoints)
 		retval += hal_pin_float_newf(HAL_IN, (volatile double **)&(addr->cia_pos_cmd), id,
                                   "joint.%d.cia-pos-cmd", jno);                                                                                                                       
 		retval += hal_pin_float_newf(HAL_IN, (volatile double **)&(addr->cia_velocity_cmd), id,
-                                  "joint.%d.cia.velocity-cmd", jno);                                                                                                                       
+                                  "joint.%d.cia-velocity-cmd", jno);                                                                                                                       
 		retval += hal_pin_float_newf(HAL_OUT, (volatile double **)&(addr->cia_pos_fb), id,
                                   "joint.%d.cia-pos-fb", jno);                                                                                                                       
 		retval += hal_pin_float_newf(HAL_OUT, (volatile double **)&(addr->cia_velocity_fb), id,
